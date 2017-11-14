@@ -40,10 +40,10 @@ print(X.head())
 X=source.to_df()
 
 '''
-
+scatter=None
+heatmap=None
 
 def heatmap_to_pair(viz_params=None,source=None):
-
     #0 -train, 1- test
     def train_test_split():
         global X
@@ -138,7 +138,7 @@ def heatmap_to_pair(viz_params=None,source=None):
     categories = [x for x in discrete if df[x].dtype == object]
     continuous = [x for x in columns if x not in discrete]
     quantileable = [x for x in continuous if len(df[x].unique()) > 20]
-    #print(columns,discrete,categories,continuous,quantileable)
+
     print("discrete: ",discrete)
     print("categories: ",categories)
     print("continuous: ",continuous)
@@ -151,19 +151,26 @@ def heatmap_to_pair(viz_params=None,source=None):
     
     source.add(source.data[x_value],'x')
     source.add(source.data[y_value],'y')
-      
+     
+    
+     
     def bokeh_scatter():
+        global scatter
         hover=HoverTool(tooltips=[\
                            ('target','@target')],show_arrow=False)
+
         p=figure(tools='pan,box_select,reset',**PLOT_OPTS)
         p.add_tools(hover)
         y_='sepal_width'
         p.circle(x='index',y='y',\
              source=source,\
              fill_color={'field':'target', 'transform': mapper})
+
+        scatter=p
         return p
                      
     def bokeh_heatmap():  
+        global heatmap
         train_pred,test_pred,_,_=train_evaluate_model(select_.value,x_train,y_train,x_test,y_test)
         try:
            print(source.data['pred'])
@@ -174,11 +181,6 @@ def heatmap_to_pair(viz_params=None,source=None):
               
         print(select_.value)
         title="Predictions: %s"%(select_.value)
-
-        x_value=viz_params.get('x_value','index')
-        y_value=viz_params.get('y_value','target')
-        color_value=viz_params.get('color_value','pred')
-        print(x_value,y_value,color_value)
 
         hover1=HoverTool(tooltips=[('pred_value',"@pred"),\
                            ('target','@target')],show_arrow=False)
@@ -201,6 +203,8 @@ def heatmap_to_pair(viz_params=None,source=None):
                      label_standoff=10, border_line_color=None, location=(0, 0))
 
         p1.add_layout(color_bar,'right')
+
+        heatmap=p1
         return p1
 
     def get_new_pred(model):
@@ -208,9 +212,10 @@ def heatmap_to_pair(viz_params=None,source=None):
         return list(train_pred)+list(test_pred) 
 
     def select_change(attr,old,new):
-        viz_params['x_value']=x.value
-        viz_params['y_value']=y.value
-        viz_params['color_value']=color.value
+        global scatter,heatmap
+        print(scatter,heatmap)
+
+        heatmap.title.text= "Predictions: %s"%(select_.value)
 
         pred=get_new_pred(select_.value)
         print(np.mean(source.data['pred']==pred))
@@ -221,9 +226,14 @@ def heatmap_to_pair(viz_params=None,source=None):
     select_.on_change('value',select_change)
    
     def update_plot(attr,old,new):
-        viz_params['x_value']=x.value
-        viz_params['y_value']=y.value
-        viz_params['color_value']=color.value
+        global scatter,heatmap
+        print(scatter,heatmap)
+        
+        heatmap.xaxis.axis_label=x.value
+        heatmap.yaxis.axis_label=y.value
+        heatmap.title.text= "Predictions: %s"%(select_.value)
+
+        scatter.yaxis.axis_label=y.value
 
         source.data['x']=source.data[x.value]
         source.data['y']=source.data[y.value]
@@ -233,16 +243,16 @@ def heatmap_to_pair(viz_params=None,source=None):
     x=Select(title='X-Axis', value=viz_params.get('x','index'), options=quantileable)
     x.on_change('value',update_plot)
 
-    y = Select(title='Y-Axis', value=viz_params.get('y','target'), options=quantileable)
+    y = Select(title='Y-Axis', value=viz_params.get('y','target'), options=quantileable + discrete)
     y.on_change('value',update_plot)
 
     color = Select(title='Color', value=viz_params.get('color','pred'), options=['pred'] + categories+quantileable)
     color.on_change('value',update_plot)
 
-    scatter=bokeh_scatter()
+    scat=bokeh_scatter()
     hmap=bokeh_heatmap()
-    #plot=layout([row(hmap,s)])
-    plot=column(scatter,hmap)
+   
+    plot=column(scat,hmap)
     widgets=column(widgetbox(select_,x,y,color))
     return (plot,widgets)
 
